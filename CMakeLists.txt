@@ -6,9 +6,11 @@ include_directories(
     include/
     )
 
+enable_testing()
+
 add_subdirectory(deps/googletest)
 add_subdirectory(src)
-# add_subdirectory(test)
+add_subdirectory(tests)
 
 add_executable(pipeline upipe.cpp)
 target_link_libraries(pipeline commands)

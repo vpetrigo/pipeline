@@ -1,25 +1,43 @@
 #include "commands.hpp"
+#include <sstream>
 
-constexpr char SPACE_DELIM = ' ';
+Command::Command(const std::string& cmd, const std::string& args)
+    : cmd{cmd}, args{args} {}
 
-inline std::size_t skip_whitespaces(const std::string& s, std::size_t pos = 0) {
-   return s.find_first_not_of(SPACE_DELIM, pos); 
+Command::Command(const std::string& s) : cmd{s}, args{""} {
+  if (cmd.empty()) {
+    return;
+  }
+
+  std::istringstream iss{cmd};
+
+  iss >> cmd;
+
+  std::string arg;
+
+  while (iss >> arg) {
+    args += arg;
+    iss >> std::ws;
+
+    if (!iss.eof()) {
+      args += " ";
+    }
+  }
 }
 
-Command make_command(const std::string& inp) {
-    // skip whitespaces if exsist
-    auto non_ws_pos = skip_whitespaces(inp);
-    auto cmd_end_pos = inp.find(SPACE_DELIM, non_ws_pos);
-    auto cmd_size = cmd_end_pos - non_ws_pos;
-    Command new_cmd;
+std::vector<Command> parse_commands(const std::string& s) {
+  std::vector<Command> cmds;
+  // skip leading spaces
+  std::size_t prev_pos = s.find_first_not_of(' ');
+  std::size_t cur_pos = prev_pos;
 
-    new_cmd.cmd = inp.substr(non_ws_pos, cmd_size);
+  while (prev_pos != std::string::npos) {
+    cur_pos = s.find('|', prev_pos);
 
-    auto args_start_pos = skip_whitespaces(inp, cmd_size); 
-    
-    new_cmd.args = inp.substr(args_start_pos);
+    std::string full_cmd = s.substr(prev_pos, cur_pos - prev_pos);
+    cmds.push_back(Command{full_cmd});
+    prev_pos = (cur_pos != std::string::npos) ? cur_pos + 1 : std::string::npos;
+  }
 
-    return new_cmd;
+  return cmds;
 }
-
-

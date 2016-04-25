@@ -2,27 +2,19 @@
 #define COMMANDS_HPP
 
 #include <string>
-#include <cstring>
-#include <algorithm>
+#include <vector>
 
 struct Command {
-    Command() {}
+  Command(const std::string& cmd, const std::string& args);
 
-    Command(const std::string& cmd, const std::string& args) : cmd{cmd}, args{args} {} 
-    
-    explicit Command(const char *s) {
-        auto input_string_size = std::strlen(s);
-        // check whether size > 0
-        auto space_pos = std::distance(s, std::find(s, s + input_string_size, ' '));
+  explicit Command(const std::string& s);
 
-        cmd = std::string(s, space_pos);
-        args = std::string(s + (space_pos + 1));
-    }
-
-    std::string cmd;
-    std::string args;
+  std::string cmd;
+  std::string args;
 };
 
-Command make_command(const std::string& inp);
+// parse input string for commands
+// input must be a string with '|' delimiter
+std::vector<Command> parse_commands(const std::string& s);
 
-#endif // COMMANDS_HPP
+#endif  // COMMANDS_HPP

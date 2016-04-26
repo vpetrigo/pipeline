@@ -24,7 +24,7 @@ class Process_Error : public std::system_error {
 
 std::array<int, 2> open_pipe() {
   constexpr int PIPE_FD = 2;
-  std::array<int, 2> pipe_fd;
+  std::array<int, PIPE_FD> pipe_fd;
 
   if (pipe(pipe_fd.data()) != 0) {
     throw Pipe_Error{std::error_code(errno, std::generic_category())};
@@ -42,56 +42,56 @@ int call_command(const Command& cmd) noexcept {
 void spawn_proc(const Command& cmd, int& in_fd) {
   constexpr unsigned PIPE_READ = 0;
   constexpr unsigned PIPE_WRITE = 1;
-  try {
-    const auto pipe = open_pipe();
-    pid_t ch_pid = fork();
+  const auto pipe = open_pipe();
+  pid_t ch_pid = fork();
 
-    if (ch_pid == -1) {
-      // handle fork error
-    } 
-    else if (ch_pid == 0) {
-      // child code
-      close(pipe[PIPE_READ]);
-      dup2(in_fd, STDIN_FILENO);
-      dup2(pipe[PIPE_WRITE], STDOUT_FILENO);
-
-      int retval = call_command(cmd);
-
-      if (retval) {
-        throw Process_Error{std::error_code(errno, std::generic_category())};
-      }
-    } 
-    else {
-      in_fd = pipe[PIPE_READ];
-      close(pipe[PIPE_WRITE]);
-      wait(nullptr);
-    }
+  if (ch_pid == -1) {
+    // handle fork error
   } 
-  catch (const Pipe_Error& pe) {
-    std::cerr << "ERROR " << pe.code() << ": " << pe.what() << std::endl;
-    throw;
+  else if (ch_pid == 0) {
+    // child code
+    close(pipe[PIPE_READ]);
+    dup2(in_fd, STDIN_FILENO);
+    dup2(pipe[PIPE_WRITE], STDOUT_FILENO);
+    call_command(cmd);
+    // in case of error return 1
+    exit(1);
+  } 
+  else {
+    int ch_status;
+
+    in_fd = pipe[PIPE_READ];
+    close(pipe[PIPE_WRITE]);
+    wait(&ch_status);
+    
+    if (!WIFEXITED(ch_status)) {
+      throw Process_Error{std::error_code(ch_status, std::generic_category())};
+    }
   }
 }
 
 void process_commands(const std::vector<Command>& cmds) {
   int in_fd;
   auto last_command = cmds.back();
-
-  for (auto it = cmds.cbegin(); it != cmds.cend() - 1; ++it) {
-    try {
+  
+  try {
+    for (auto it = cmds.cbegin(); it != cmds.cend() - 1; ++it) {
       spawn_proc(*it, in_fd);
     }
-    catch (const Pipe_Error& pe) {
-      throw;
+    // get data from the last pipe's out
+    dup2(in_fd, STDIN_FILENO);
+
+    int retval = call_command(last_command);
+
+    if (retval) {
+      throw Process_Error{std::error_code(errno, std::generic_category())};
     }
   }
-  // get data from the last pipe's out
-  dup2(in_fd, STDIN_FILENO);
+  catch (...) {
+    // close another end of pipe which was set by spawn_process()
+    close(in_fd);
 
-  int retval = call_command(last_command);
-
-  if (retval) {
-    throw Process_Error{std::error_code(errno, std::generic_category())};
+    throw;
   }
 }
 
@@ -101,13 +101,13 @@ int main() {
   std::getline(std::cin, cmds_line);
 
   auto cmds = parse_commands(cmds_line);
-  
+
   try {
-      process_commands(cmds);
-  }
+    process_commands(cmds);
+  } 
   catch (const std::system_error& pe) {
     std::cerr << "ERROR " << pe.code() << ": " << pe.what() << std::endl;
-    
+
     return 1;
   }
 
